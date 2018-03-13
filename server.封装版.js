@@ -34,10 +34,7 @@ http.createServer(function(req,res){
     //首页
     if(req.url=='/'||req.url=='/index'){
         // 拿到本地数据渲染
-        fs.readFile(path.join(__dirname,'./data/data.json'),'utf=8',function(err,data){
-            if(err&&err.code!='ENOENT'){
-                throw err
-            };
+        readData(function(data){
             let arr =JSON.parse(data||'[]');
             //模板需要传入数组
             res.render(path.join(__dirname,'./views/index.html'),arr)
@@ -47,13 +44,10 @@ http.createServer(function(req,res){
     else if(req.url=='/detail'){
         //获得id
         let id = URL.parse(req.url,true).query.id;
-        fs.readFile(path.join(__dirname,'data/data.json'),'utf-8',function(err,data){
-            if(err){
-                throw err
-            }
+        readData(function(data){
             let arr =JSON.parse(data||'[]');
-            for(let i=0;i<list.length;i++){
-                const obj = list[i]
+            for(let i=0;i<arr.length;i++){
+                const obj = arr[i]
                 if(obj.id==id){
                     //模板需要传入对象
                     res.render(path.join(__dirname,'./views/detail.html'),obj)
@@ -67,11 +61,7 @@ http.createServer(function(req,res){
     }
     //添加 add get
     else if(req.url.startsWith('/add')&&req.method=='GET'){
-        fs.readFile(path.join(__dirname,'./data/data.json'),'utf-8',function(err,data){
-            //抛出错误,除了ENOENT这个错误
-            if(err&&err.code !='ENOENT'){
-                throw err;
-            }
+        readData(function(data){
             // 将字符串转换成数组
             let arr=JSON.parse(data||'[]')
 
@@ -81,10 +71,7 @@ http.createServer(function(req,res){
             obj.id=arr.length;
             arr.push(obj);
             //数据写入回本地
-            fs.writeFile(path.join(__dirname,'./data/data.json'),JSON.stringify(arr),function(err){
-                if (err) {
-                    throw err;
-                }
+            writeData(arr,function(){
                 //重定向,设置状态码和状态信息
                 res.statusCode='301';
                 res.statusMessage='Moved Permanently';
@@ -96,25 +83,12 @@ http.createServer(function(req,res){
     }
     //添加 add post
     else if(req.url=='/add'&&req.method=='POST'){
-        fs.readFile(path.join(__dirname,'./data/data.json'),'utf-8',function(err,data){
-            if(err && err.code != 'ENOENT'){
-                throw err
-            }
+        readData(function(data){
             //转换为数组
             let arr = JSON.parse(data||'[]');
             //获得前端填的post传来的数据(在请求头里)
             //监听data end 事件
-            let buffArr=[];
-            req.on('data',function(chunk){
-                buffArr.push(chunk)
-            });
-            req.on('end',function(){
-                //把一个一个buffer小块合并成一个大buff块
-                let buffer = Buffer.concat(buffArr)
-                //转换成字符串(查询字符串)
-                let str = buffer.toString();
-                //再把查询字符串转换成对象(键值对)
-                let obj = querystring.parse(str);
+            postBody(req,function(obj){
                 //添加id属性
                 obj.id = arr.length;
                 //最后加到原来的数据里
@@ -159,3 +133,37 @@ res.render=function(filepath){
     })
 }
 
+//读取数据封装
+function readData(callback){
+    //拿到本地数据
+    fs.readFile(path.join(__dirname,'data/data.json'),'utf-8',function(err,data){
+        if(err && err.code!='ENOENT'){
+            throw err
+        }
+        callback(data);
+    })
+}
+
+//写入数据
+function writeData(list,callback){
+    fs.writeFile(path.join(__dirname,'data/data.json'),JSON.stringify(list),function(err){
+        if(err){
+            throw err;
+        }
+        callback()
+    })
+}
+
+//请求体获取数据
+function postBody(req,callback){
+    let buffArr=[];
+    req.on('data',function(chunk){
+        buffArr.pash(chunk)
+    })
+    req.on('end',function(){
+        let buffer = Buffer.concat(buffArr);
+        let str = buffer.toString();
+        let obj = querystring.parse(str);
+        callback(obj)
+    })
+}
